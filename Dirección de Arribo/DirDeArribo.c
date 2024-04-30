@@ -156,7 +156,7 @@ int jack_callback(jack_nframes_t nframes, void *arg){
   double angulo;
 
   angulo = 90 - asin(vel_sonido*desfase_tiempo/dist_mic)*(180/M_PI);
-  printf('El ángulo de arribo es %f\n', angulo);
+  printf("El ángulo de arribo es %f\n", angulo);
 
   return 0;
 
