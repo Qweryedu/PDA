@@ -29,7 +29,7 @@ fftw_plan mic2_forward, mic2_backward;
 jack_port_t *input_port1, *input_port2;
 jack_client_t *client;
 
-// Freciencia de muestreo
+// Frecuencia de muestreo
 double sample_rate;
 // Tamaño del buffer
 int buffer_size;
