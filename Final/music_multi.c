@@ -92,7 +92,12 @@ void music_spectrum_alloc(void) {
 
 ///////////// Callback /////////////////
 int jack_callback(jack_nframes_t nframes, void *arg) {
+  int i;
   // Obtenemos las entradas
+  jack_default_audio_sample_t *in1, *in2;
+  in1 = jack_port_get_buffer(input_port1, nframes);
+  in2 = jack_port_get_buffer(input_port2, nframes);
+
   // Calculamos sus transformadas
   // Hacemos la matriz X
 
