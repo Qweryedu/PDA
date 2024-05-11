@@ -26,8 +26,14 @@ const int sig_n         = 1; // Cantidad de señales
 const int num_elements  = 1800; // Cantidad de grados a checar
 double *angles; // Angles vector
 double **music_spectrum; // spectrum vector
-double **X; // Data matrix
-double *w; // Frequency vector
+double complex **X; // Data matrix
+double complex *R;
+int *w; // Frequency vector
+int min_freq = 20;
+int max_freq = 20000;
+int *search_freq;
+int freq_range;
+double complex *this_X;
 
 // FFTW buffers
 double complex *in_fft, *in_time, *out_fft, *out_time;
@@ -39,7 +45,7 @@ jack_port_t *input_port1, *input_port2;
 jack_client_t *client;
 
 // Frecuencia de muestreo
-double sample_rate;
+int sample_rate;
 // Tamaño del buffer
 int buffer_size;
 int buffer_index = 0;
@@ -69,6 +75,14 @@ void set_angles(void) {
   }
 }
 
+void set_search_freq(void) {
+  freq_range = max_freq - min_freq;
+  search_freq = (int *)malloc((max_freq-min_freq) * sizeof(int));
+  for (int i = 0; i < freq_range; i+=1) {
+    search_freq[i] = min_freq + i;
+  }
+}
+
 void music_spectrum_alloc(void) {
   music_spectrum = (double **)malloc(mic_n * sizeof(double*));
   if (music_spectrum == NULL) {
@@ -88,29 +102,66 @@ void music_spectrum_alloc(void) {
   }
 }
 
+void R_alloc(void) {
+  R = (double complex *)malloc(buffer_size * sizeof(double complex));
+}
 
+void fill_w(void) {
+  // Alocamos memoria
+  w = (int *) malloc(sample_rate * sizeof(int));
+  // Llenamos la primer mitad
+  for (int i = 0; i <= (sample_rate/2); i+=1) {
+    w[i] = i;
+  }
+  // Llenamos la segunda mitad
+  for (int i = 1 + sample_rate/2; i < sample_rate; i+=1) {
+    w[i] = - (sample_rate/2 - (i - sample_rate/2));
+  }
+}
 
 ///////////// Callback /////////////////
 int jack_callback(jack_nframes_t nframes, void *arg) {
-  int i;
+  int i,j;
   // Obtenemos las entradas
   jack_default_audio_sample_t *in1, *in2;
   in1 = jack_port_get_buffer(input_port1, nframes);
   in2 = jack_port_get_buffer(input_port2, nframes);
 
-  // Calculamos sus transformadas
-  // Hacemos la matriz X
 
-  //  Obtenemos las ffts de las señales y llenamos el arreglo
+  jack_default_audio_sample_t *entradas[mic_n];
+  entradas[0] = in1;
+  entradas[1] = in2;
+
+  // Calculamos sus transformadas y guardamos en X
+  for (i=0; i<mic_n; ++i) {
+    for (j=0; j < fft_buffer_size; ++j) {
+      in_time[j] = entradas[i][j];
+    }
+    // Calculamos FFT
+    fftw_execute(fft_forward);
+    //Copiamos en X
+    for (j=0; j<fft_buffer_size; ++j) {
+      X[i][j] = in_fft[j];
+    }
+  }
+
 
   // Iteramos por cada frecuencia
-  //  Calculamos R
-  //  Eigendescomposicion de R
-  //  Sort eigenvalues (descending)
-  //  Sort Q eigenvectors
-  //  Get noise eigenvectors
-  //  Compute steering vectors
-  //  Compute MUSIC spectrum
+  for (i = 0; i < freq_range; ++i) {
+    int freq = search_freq[i];
+    for (j = 0; j < mic_n; j++) {
+      this_X[j] = X[j][i];
+    }
+    //  Calculamos R
+     
+    //  Eigendescomposicion de R
+    //  Sort eigenvalues (descending)
+    //  Sort Q eigenvectors
+    //  Get noise eigenvectors
+    //  Compute steering vectors
+    //  Compute MUSIC spectrum
+  }
+  
 
   // Get argmax and print
 
@@ -121,12 +172,15 @@ int jack_callback(jack_nframes_t nframes, void *arg) {
 void jack_shutdown(void *arg) {
   exit(1);
 }
+
 ///////////// main /////////////////////
 int main(int argc, char *argv[]) {
   int i,j; // Iteradores
   printf("Implementación de MUISC");
   // Definimos el vector de ángulos
   set_angles();
+  // Definimos el vector de frecuencias de búsqueda
+  set_search_freq();
   // Apartamos la memoria para el espectro de MUSIC
   music_spectrum_alloc();
 
@@ -157,14 +211,20 @@ int main(int argc, char *argv[]) {
   jack_on_shutdown(client, jack_shutdown, 0);
 
   // Obtenemos el sample rate
-  sample_rate = (double) jack_get_sample_rate(client);
+  sample_rate = (int) jack_get_sample_rate(client);
   int nframes = jack_get_buffer_size(client);
   buffer_size = nframes;
-  printf ("Sample rate: %f\n", sample_rate);
+  printf ("Sample rate: %d\n", sample_rate);
   printf ("Window size: %d\n", nframes);
 
   // Definimos X
   X[mic_n][buffer_size];
+  // Llenamos w
+  fill_w();
+  // Apartamos la memoria para R
+  R_alloc();
+
+  this_X = (double complex*)malloc(mic_n*sizeof(double complex));
 
   // Definimos el tamaño del buffer de FFT
   fft_buffer_size = nframes;
