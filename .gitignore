@@ -4,7 +4,8 @@
 /baudline.tar.gz
 /delay
 /delay_seg
-/test*
+test*
 /test.c
 AIRA
 ReadMicWavs
+corpus*

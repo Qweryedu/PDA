@@ -18,7 +18,7 @@ Procesamiento Digital de Audio
 
 /// Varibales globales
 const double vel_sonido = 343;   // metros/segundos
-const double dist_mic   = 0.065; // Distancia entre mic de mi laptop
+const double dist_mic   = 0.21; // Distancia entre mic de mi laptop
 // FFTW buffers
 double complex *mic1_i_fft, *mic1_i_time, *mic1_o_fft, *mic1_o_time;
 double complex *mic2_i_fft, *mic2_i_time, *mic2_o_fft, *mic2_o_time;
@@ -155,7 +155,7 @@ int jack_callback(jack_nframes_t nframes, void *arg){
   // Siguiendo la diapositiva 22 de la clase 6.1 DOA
   double angulo;
 
-  angulo = 90 - asin(vel_sonido*desfase_tiempo/dist_mic)*(180/M_PI);
+  angulo = asin(vel_sonido*desfase_tiempo/dist_mic)*(180/M_PI);
   printf("El ángulo de arribo es %f\n", angulo);
 
   return 0;

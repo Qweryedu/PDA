@@ -15,8 +15,10 @@ PCIC - IIMAS
 // JACK
 #include <jack/jack.h>
 // FFTW3
-#include <complex.h>
+#include <complex>
 #include <fftw3.h>
+
+using namespace std;
 
 ///////////// Varibales globales ///////
 const double vel_sonido = 343;   // metros/segundos
@@ -24,20 +26,20 @@ const double dist_mic   = 0.18;  // Distancia entre micrófonos, checar AIRA
 const int mic_n         = 2; // Cantidad de micrófonos
 const int sig_n         = 1; // Cantidad de señales
 const int num_elements  = 1800; // Cantidad de grados a checar
-double *angles; // Angles vector
+int *angles; // Angles vector
 double **music_spectrum; // spectrum vector
-double complex **X; // Data matrix
-double complex *R;
+std::complex <double> **X; // Data matrix
+std::complex <double> *R;
 int *w; // Frequency vector
-int min_freq = 20;
-int max_freq = 20000;
+int min_freq =40;
+int max_freq = 40000;
 int *search_freq;
 int freq_range;
-double complex *this_X;
+std::complex<double> *this_X;
 double *ventanaHann;
 
 // FFTW buffers
-double complex *in_fft, *in_time, *out_fft, *out_time;
+std::complex <double> *in_fft, *in_time, *out_fft, *out_time;
 // Solo definimos un plan para reciclar
 fftw_plan fft_forward, fft_backward;
 
@@ -248,9 +250,9 @@ int main(int argc, char *argv[]) {
   printf ("Window size: %d\n", nframes);
 
   // Definimos X
-  X = (double complex **)malloc(mic_n*sizeof(double complex *));
+  X = (std::complex<double> **)malloc(mic_n*sizeof(std::complex<double> *));
   for (i=0; i<buffer_size; i+=1) {
-    X[i] = (double complex *)malloc(buffer_size*sizeof(double complex));
+    X[i] = (std::complex<double> *)malloc(buffer_size*sizeof(std::complex<double>));
   }
   printf("X definido\n");
   // Llenamos w
@@ -261,7 +263,7 @@ int main(int argc, char *argv[]) {
   R_alloc();
   printf("R_alloc done\n");
 
-  this_X = (double complex*)malloc(mic_n*sizeof(double complex));
+  this_X = (std::complex <double>*)malloc(mic_n*sizeof(std::complex <double>));
   printf("this_X done\n");
   // Definimos el tamaño del buffer de FFT
   fft_buffer_size = nframes;
@@ -273,10 +275,10 @@ int main(int argc, char *argv[]) {
 
   ///// FFTW3 
   // Buffers
-  in_fft = (double complex *) fftw_malloc(sizeof(double complex) * fft_buffer_size);
-  in_time = (double complex *) fftw_malloc(sizeof(double complex) * fft_buffer_size);
-  out_fft = (double complex *) fftw_malloc(sizeof(double complex) * fft_buffer_size);
-  out_time = (double complex *) fftw_malloc(sizeof(double complex) * fft_buffer_size);
+  in_fft = (std::complex<double> *) fftw_malloc(sizeof(std::complex<double>) * fft_buffer_size);
+  in_time = (std::complex<double> *) fftw_malloc(sizeof(std::complex<double>) * fft_buffer_size);
+  out_fft = (std::complex<double> *) fftw_malloc(sizeof(std::complex<double>) * fft_buffer_size);
+  out_time = (std::complex<double> *) fftw_malloc(sizeof(std::complex<double>) * fft_buffer_size);
 
   // Plans
   fft_forward  = fftw_plan_dft_1d(fft_buffer_size, in_time, in_fft, FFTW_FORWARD, FFTW_MEASURE);
