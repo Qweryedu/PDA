@@ -6,7 +6,7 @@ Procesamiento Digital de Audio
 PCIC - IIMAS
 */
 
-/// Bibliotecas
+/// Bibliotecas de C
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -15,27 +15,35 @@ PCIC - IIMAS
 // JACK
 #include <jack/jack.h>
 // FFTW3
-#include <complex>
 #include <fftw3.h>
 
+/// Bibliotecas de C++
+#include <complex>
+#include <Eigen/Dense>
+#include <vector>
+#include <numeric>
+#include <iostream>
+
+
 using namespace std;
+// using namespace Eigen;
 
 ///////////// Varibales globales ///////
 const double vel_sonido = 343;   // metros/segundos
 const double dist_mic   = 0.18;  // Distancia entre micrófonos, checar AIRA
-const int mic_n         = 2; // Cantidad de micrófonos
-const int sig_n         = 1; // Cantidad de señales
+const int numMic        = 2; // Cantidad de micrófonos
+const int numSig        = 1; // Cantidad de señales
 const int num_elements  = 1800; // Cantidad de grados a checar
-int *angles; // Angles vector
-double **music_spectrum; // spectrum vector
-std::complex <double> **X; // Data matrix
+std::vector<double> angles; // Angles vector
+int numAngles;
+Eigen::MatrixXcd X; // Data matrix
 std::complex <double> *R;
-int *w; // Frequency vector
+double *w; // Frequency vector
 int min_freq =40;
 int max_freq = 40000;
 int *search_freq;
 int freq_range;
-std::complex<double> *this_X;
+Eigen::MatrixXcd this_X;
 double *ventanaHann;
 
 // FFTW buffers
@@ -62,25 +70,12 @@ jack_default_audio_sample_t *mic1, *mic2;
 ///////////// Funciones ////////////////
 void set_angles(void) {
   // // Define los ángulos a buscar dentro de MUSIC
-  // double start  = -90.0;
-  // double finish = 90.0;
 
-  // // Reservamos el espacio
-  // angles = (double *)malloc(num_elements * sizeof(double));
-  // if (angles == NULL) {
-  //   printf("Fallo en alocacion de angles\n");
-  // }
-
-  // double increment = (finish - start) / (num_elements);
-  // // Llenamos el arreglo
-  // for (int i = 0; i < num_elements; i+=1) {
-  //   angles[i] = start + increment*i;
-  // }
   // Intentaremos checar todos los ángulos por ahora
-  angles = (int *) malloc(360*sizeof(int));
+  // Se checan los ángulos con resolución de 1 porque los humanos tenemos res de 3° aproximadamente. 
   //Llenamos el vector
-  for (int i= 0; i<360; i+=1) {
-    angles[i] = 0;
+  for (int angulo = -90; angulo<90; angulo+=1) {
+    angles.push_back(angulo);
   }
   // Cambiar solamente a 180 grados
 }
@@ -88,6 +83,9 @@ void set_angles(void) {
 void set_search_freq(void) {
   // Definir los candidatos
   // Checar con todos, checar con 40 a 40k Hz
+  for (int i = 0; i < fft_buffer_size; i+=1) {
+    search_freq[i] = w[i];
+  }
   // freq_range = max_freq - min_freq;
   // search_freq = (int *)malloc((max_freq-min_freq) * sizeof(int));
   // for (int i = 0; i < freq_range; i+=1) {
@@ -101,29 +99,29 @@ void set_search_freq(void) {
   // }
 }
 
-void music_spectrum_alloc(void) {
-  // Cambiar mic_n a frecuencas de búsqueda
-  music_spectrum = (double **)malloc(mic_n * sizeof(double*));
-  if (music_spectrum == NULL) {
-    printf("Fallo en inicio de music_spectrum_alloc\n");
-  }
+// void music_spectrum_alloc(void) {
+//   // Cambiar numMic a frecuencas de búsqueda
+//   music_spectrum = (double **)malloc(numMic * sizeof(double*));
+//   if (music_spectrum == NULL) {
+//     printf("Fallo en inicio de music_spectrum_alloc\n");
+//   }
 
-  for (int i = 0; i < mic_n; i+=1) {
-    music_spectrum[i] = (double *)malloc(num_elements * sizeof(double));
-    if (music_spectrum[i] == NULL) {
-      printf("Fallo en segunda parte de music_spectrum_alloc. Iter: %d\n", i);
-    }
+//   for (int i = 0; i < numMic; i+=1) {
+//     music_spectrum[i] = (double *)malloc(num_elements * sizeof(double));
+//     if (music_spectrum[i] == NULL) {
+//       printf("Fallo en segunda parte de music_spectrum_alloc. Iter: %d\n", i);
+//     }
 
-    // Rellenamos la fila con 1
-    for (int j = 0; j < num_elements; j+=1) {
-      music_spectrum[i][j] = 1.0;
-    }
-  }
-}
+//     // Rellenamos la fila con 1
+//     for (int j = 0; j < num_elements; j+=1) {
+//       music_spectrum[i][j] = 1.0;
+//     }
+//   }
+// }
 
-void R_alloc(void) {
-  R = (double complex *)malloc(buffer_size * sizeof(double complex));
-}
+// void R_alloc(void) {
+//   R = (double complex *)malloc(buffer_size * sizeof(double complex));
+// }
 
 void fill_w(void) {
   // Definimos el arreglo de frecuencias
@@ -148,21 +146,102 @@ void set_hann(void) {
   }
 }
 
+// Function to compute the covariance matrix
+Eigen::MatrixXcd computeCovarianceMatrix(const Eigen::MatrixXcd& X) {
+    return (X * X.adjoint());
+}
+
+// Function to perform eigenvalue decomposition and separate signal and noise subspaces
+void eigenDecomposition(const Eigen::MatrixXcd& R, Eigen::MatrixXcd& Qs, Eigen::MatrixXcd& Qn) {
+  // Iniciamos un solver del tipo de matriz Adjoint
+  Eigen::SelfAdjointEigenSolver<Eigen::MatrixXcd> es(R);
+  // Sacamos eigenVectores
+  Eigen::MatrixXcd eigenVectors = es.eigenvectors();
+  // Sacamos eigenValores
+  Eigen::VectorXd eigenValues = es.eigenvalues();
+
+  // Sort de los eigenValore para separar los eigenVectores
+  std::vector<int> index(eigenValues.size());
+  // Iniciamos los valores
+  std::iota(index.begin(), index.end(), 0);
+  // Los acomodamos de acuerdo a los eigenValores
+  std::sort(index.begin(), index.end(), [&eigenValues](int i1, int i2) { return eigenValues[i1] > eigenValues[i2]; });
+
+  // Reroganizamos los eigenVectores
+  Eigen::MatrixXcd sortedEigenVectors(eigenVectors.rows(), eigenVectors.cols());
+  for (int i = 0; i < index.size(); ++i) {
+      sortedEigenVectors.col(i) = eigenVectors.col(index[i]);
+  }
+
+  // Sacamos los eigenVectores de señal
+  Qs = sortedEigenVectors.leftCols(numSig);
+  Qn = sortedEigenVectors.rightCols(eigenVectors.cols() - numSig);
+}
+
+// Function to compute the array response vector for a given angle
+Eigen::VectorXcd arrayResponseVector(int numSensors, double angle, double d, double lambda) {
+    Eigen::VectorXcd a(numSensors);
+    std::complex<double> j(0, 1);
+    for (int i = 0; i < numSensors; ++i) {
+        a[i] = std::exp(j * 2.0 * M_PI * (d) * static_cast<double>(i) * std::sin(angle) / lambda);
+    }
+    return a;
+}
+
+// Function to compute the MUSIC pseudospectrum
+Eigen::VectorXd musicSpectrum(const Eigen::MatrixXcd& signalSubspace, int numSensors, int numAngles, double d, double lambda) {
+    Eigen::VectorXd spectrum(numAngles);
+    Eigen::MatrixXcd proj = signalSubspace * signalSubspace.adjoint();
+    for (int i = 0; i < numAngles; ++i) {
+        double angle = -M_PI / 2 + i * M_PI / numAngles; // Angle range from -90 to 90 degrees
+        Eigen::VectorXcd a = arrayResponseVector(numSensors, angle, d, lambda);
+        std::complex<double> denominator = a.adjoint() * (Eigen::MatrixXcd::Identity(numSensors, numSensors) - proj) * a;
+        spectrum[i] = (1.0) / denominator.real();
+    }
+    return spectrum;
+}
+
+Eigen::VectorXcd musicSpectrum2(Eigen::MatrixXcd& Qn, Eigen::MatrixXcd& a) {
+  Eigen::VectorXcd music_spectrum(numAngles);
+  for (int k = 0; k < numAngles; ++k) {
+    std::complex<double> denominador = a.col(k).adjoint() * Qn * Qn.adjoint() * a.col(k);
+    music_spectrum[k] = std::abs( 1.0 / denominador ); 
+  }
+
+  return music_spectrum;
+}
+
+Eigen::MatrixXcd steeringVectors(double this_w){
+  // Steering vectors como 1's por el mic de referencia
+  Eigen::MatrixXcd a = Eigen::MatrixXcd::Ones(numMic, numAngles);
+  // Segundo mic
+  for (int i = 0; i < numAngles; ++i) {
+    a(1,i) = std::exp(std::complex<double>(0, -2 * M_PI * this_w * (dist_mic/vel_sonido) * std::sin(angles[i] * M_PI/180)));
+  }
+  return a;
+}
+
+
 ///////////// Callback /////////////////
 int jack_callback(jack_nframes_t nframes, void *arg) {
   int i,j;
   // Obtenemos las entradas
   jack_default_audio_sample_t *in1, *in2;
-  in1 = jack_port_get_buffer(input_port1, nframes);
-  in2 = jack_port_get_buffer(input_port2, nframes);
+  in1 = (jack_default_audio_sample_t *)jack_port_get_buffer(input_port1, nframes);
+  in2 = (jack_default_audio_sample_t *)jack_port_get_buffer(input_port2, nframes);
 
+  // Hanneamos ambas ventanas
+  for (i=0; i<nframes; ++i) {
+    in1[i] = in1[i] * ventanaHann[i];
+    in2[i] = in2[i] * ventanaHann[i];
+  }
 
-  jack_default_audio_sample_t *entradas[mic_n];
+  jack_default_audio_sample_t *entradas[numMic];
   entradas[0] = in1;
   entradas[1] = in2;
   // printf("entradas completas\n");
   // Calculamos sus transformadas y guardamos en X
-  for (i=0; i<mic_n; ++i) {
+  for (i=0; i<numMic; ++i) {
     for (j=0; j < fft_buffer_size; ++j) {
       in_time[j] = entradas[i][j];
     }
@@ -170,30 +249,47 @@ int jack_callback(jack_nframes_t nframes, void *arg) {
     fftw_execute(fft_forward);
     //Copiamos en X
     for (j=0; j<fft_buffer_size; ++j) {
-      X[i][j] = in_fft[j];
+      X(i,j) = in_fft[j];
     }
   }
 
+  // Definimos el espectro de MUSIC total
+  Eigen::VectorXcd final_music_spectrum = Eigen::VectorXd::Zero(numAngles);
+  //Checar desde aquí, posible error
+  // Iteramos por cada frecuencia dentro de X
+  for (i=0; i<fft_buffer_size; ++i) {
+    // Sacamos el slice correspondiente a la primer frecuencia
+    this_X = X.col(i);
+    // Calculamos R
+    Eigen::MatrixXcd R = computeCovarianceMatrix(this_X);
 
-  // Iteramos por cada frecuencia
-  for (i = 0; i < freq_range; ++i) {
-    int freq = search_freq[i];
-    for (j = 0; j < mic_n; j++) {
-      this_X[j] = X[j][i];
-    }
-    //  Calculamos R
-     
     //  Eigendescomposicion de R
-    //  Sort eigenvalues (descending)
-    //  Sort Q eigenvectors
-    //  Get noise eigenvectors
-    //  Compute steering vectors
+      //  Sort eigenvalues (descending)
+      //  Sort Q eigenvectors
+      //  Get noise eigenvectors
+      //  Compute steering vectors
+    Eigen::MatrixXcd Qs;
+    Eigen::MatrixXcd Qn;
+    eigenDecomposition(R, Qs, Qn);
+    
+    // Calculamos los steering vectors para la frecuencia actual
+    Eigen::MatrixXcd a = steeringVectors(w[i]);
+
     //  Compute MUSIC spectrum
+    Eigen::VectorXcd tmp_music_spectrum(numAngles);
+    tmp_music_spectrum = musicSpectrum2(Qn, a);
+
+    final_music_spectrum += tmp_music_spectrum;
   }
-  
+
 
   // Get argmax and print
+  Eigen::Index maxIndex;
+  double maxVal = final_music_spectrum.real().maxCoeff(&maxIndex);
+  double maxAngle = angles[maxIndex];
 
+  // Print
+  std::cout << "DOI: " << maxAngle << "°" << std::endl;
 
   return 0;
 }
@@ -209,12 +305,10 @@ int main(int argc, char *argv[]) {
   // Definimos el vector de ángulos
   set_angles();
   printf("set_angles done\n");
-  // Definimos el vector de frecuencias de búsqueda
-  // set_search_freq();
-  // printf("set_search_freq done\n");
-  // Apartamos la memoria para el espectro de MUSIC
-  music_spectrum_alloc();
-  printf("music_spectrum_alloc done\n");
+  
+  // // Apartamos la memoria para el espectro de MUSIC
+  // music_spectrum_alloc();
+  // printf("music_spectrum_alloc done\n");
 
   // Cosas de JACK
   const char *client_name = "MUSIC";
@@ -250,21 +344,27 @@ int main(int argc, char *argv[]) {
   printf ("Window size: %d\n", nframes);
 
   // Definimos X
-  X = (std::complex<double> **)malloc(mic_n*sizeof(std::complex<double> *));
-  for (i=0; i<buffer_size; i+=1) {
-    X[i] = (std::complex<double> *)malloc(buffer_size*sizeof(std::complex<double>));
-  }
+  X = Eigen::MatrixXcd::Zero(numMic, buffer_size);
+  // X = (std::complex<double> **)malloc(numMic*sizeof(std::complex<double> *));
+  // for (i=0; i<buffer_size; i+=1) {
+  //   X[i] = (std::complex<double> *)malloc(buffer_size*sizeof(std::complex<double>));
+  // }
+
+
   printf("X definido\n");
   // Llenamos w
   fill_w();
   printf("fill_w done\n");
+  // Definimos el vector de frecuencias de búsqueda
+  set_search_freq();
+  printf("set_search_freq done\n");
   // Apartamos la memoria para R
   // Se tiene que convertir a una matriz de Eigen
-  R_alloc();
-  printf("R_alloc done\n");
+  // R_alloc();
+  // printf("R_alloc done\n");
 
-  this_X = (std::complex <double>*)malloc(mic_n*sizeof(std::complex <double>));
-  printf("this_X done\n");
+  // this_X = (std::complex <double>*)malloc(numMic*sizeof(std::complex <double>));
+  // printf("this_X done\n");
   // Definimos el tamaño del buffer de FFT
   fft_buffer_size = nframes;
   printf("FFT buffer size: %d\n", fft_buffer_size);
@@ -278,11 +378,11 @@ int main(int argc, char *argv[]) {
   in_fft = (std::complex<double> *) fftw_malloc(sizeof(std::complex<double>) * fft_buffer_size);
   in_time = (std::complex<double> *) fftw_malloc(sizeof(std::complex<double>) * fft_buffer_size);
   out_fft = (std::complex<double> *) fftw_malloc(sizeof(std::complex<double>) * fft_buffer_size);
-  out_time = (std::complex<double> *) fftw_malloc(sizeof(std::complex<double>) * fft_buffer_size);
+  out_time = (std::complex<double> *)fftw_malloc(sizeof(std::complex<double>) * fft_buffer_size);
 
   // Plans
-  fft_forward  = fftw_plan_dft_1d(fft_buffer_size, in_time, in_fft, FFTW_FORWARD, FFTW_MEASURE);
-  fft_backward = fftw_plan_dft_1d(fft_buffer_size, out_time, out_fft, FFTW_BACKWARD, FFTW_MEASURE);
+  fft_forward  = fftw_plan_dft_1d(fft_buffer_size, reinterpret_cast<fftw_complex*>(in_time), reinterpret_cast<fftw_complex*>(in_fft), FFTW_FORWARD, FFTW_MEASURE);
+  fft_backward = fftw_plan_dft_1d(fft_buffer_size, reinterpret_cast<fftw_complex*>(out_time), reinterpret_cast<fftw_complex*>(out_fft), FFTW_BACKWARD, FFTW_MEASURE);
 
   // Entrada del sistema
   input_port1 = jack_port_register(client, "input1", JACK_DEFAULT_AUDIO_TYPE, JackPortIsInput, 0);
