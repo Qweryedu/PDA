@@ -7,5 +7,5 @@
 test*
 /test.c
 AIRA
-ReadMicWavs
+ReadMicWavs*
 corpus*

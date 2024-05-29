@@ -33,7 +33,7 @@ const double vel_sonido = 343;   // metros/segundos
 const double dist_mic   = 0.20;  // Distancia entre micrófonos, checar AIRA
 const int numMic        = 2; // Cantidad de micrófonos
 const int numSig        = 1; // Cantidad de señales
-// const int num_elements  = 1800; // Cantidad de grados a checar
+const int num_elements  = 1800; // Cantidad de grados a checar
 std::vector<double> angles; // Angles vector
 int numAngles;
 Eigen::MatrixXcd X; // Data matrix
@@ -41,7 +41,7 @@ std::complex <double> *R;
 Eigen::VectorXd w; // Frequency vector
 int min_freq =40;
 int max_freq = 40000;
-int *search_freq;
+std::vector<int> search_freq;
 int freq_range;
 Eigen::MatrixXcd this_X;
 double *ventanaHann;
@@ -81,12 +81,15 @@ void set_angles(void) {
 }
 
 void set_search_freq(void) {
-  // Asignamos la memoria
-  search_freq = (int *)malloc(sizeof(int) * buffer_size);
   // Definir los candidatos
-  // Checar con todos, checar con 40 a 40k Hz
-  for (int i = 0; i < fft_buffer_size; i+=1) {
-    search_freq[i] = w[i];
+  // Se piensa analizar solamente las frecuencias entre
+  // 40 a 40k Hz
+  for (int i = 0; i < w.size(); i+=1) {
+    if ((w[i] >= 40) and (w[i] <= 40000)) {
+      // Guardamos los índices que vamos a buscar posteriormente 
+      //    dentro de w
+      search_freq.push_back(i);
+    }
   }
 }
 
@@ -230,9 +233,9 @@ int jack_callback(jack_nframes_t nframes, void *arg) {
   // printf("Iniciamos final_music_spectrum y llenamos con 0's\n");fflush(stdout);
   //Checar desde aquí, posible error
   // Iteramos por cada frecuencia dentro de X
-  for (i=0; i<fft_buffer_size; ++i) {
+  for (i=0; i<search_freq.size(); ++i) {
     // Sacamos el slice correspondiente a la primer frecuencia
-    this_X = X.col(i);
+    this_X = X.col(search_freq[i]);
     // Calculamos R
     Eigen::MatrixXcd R = computeCovarianceMatrix(this_X);
 
@@ -246,7 +249,7 @@ int jack_callback(jack_nframes_t nframes, void *arg) {
     eigenDecomposition(R, Qs, Qn);
     
     // Calculamos los steering vectors para la frecuencia actual
-    Eigen::MatrixXcd a = steeringVectors(w[i]);
+    Eigen::MatrixXcd a = steeringVectors(w[search_freq[i]]);
 
     //  Compute MUSIC spectrum
     Eigen::VectorXcd tmp_music_spectrum(numAngles);
