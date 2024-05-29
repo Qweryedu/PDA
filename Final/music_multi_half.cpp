@@ -115,12 +115,11 @@ void set_hann(void) {
   }
 }
 
-// Function to compute the covariance matrix
-Eigen::MatrixXcd computeCovarianceMatrix(const Eigen::MatrixXcd& X) {
+Eigen::MatrixXcd computeCov(const Eigen::MatrixXcd& X) {
     return (X * X.adjoint());
 }
 
-// Function to perform eigenvalue decomposition and separate signal and noise subspaces
+
 void eigenDecomposition(const Eigen::MatrixXcd& R, Eigen::MatrixXcd& Qs, Eigen::MatrixXcd& Qn) {
   // Iniciamos un solver del tipo de matriz Adjoint
   Eigen::SelfAdjointEigenSolver<Eigen::MatrixXcd> es(R);
@@ -147,30 +146,7 @@ void eigenDecomposition(const Eigen::MatrixXcd& R, Eigen::MatrixXcd& Qs, Eigen::
   Qn = sortedEigenVectors.rightCols(eigenVectors.cols() - numSig);
 }
 
-// Function to compute the array response vector for a given angle
-Eigen::VectorXcd arrayResponseVector(int numSensors, double angle, double d, double lambda) {
-    Eigen::VectorXcd a(numSensors);
-    std::complex<double> j(0, 1);
-    for (int i = 0; i < numSensors; ++i) {
-        a[i] = std::exp(j * 2.0 * M_PI * (d) * static_cast<double>(i) * std::sin(angle) / lambda);
-    }
-    return a;
-}
-
-// Function to compute the MUSIC pseudospectrum
-Eigen::VectorXd musicSpectrum(const Eigen::MatrixXcd& signalSubspace, int numSensors, int numAngles, double d, double lambda) {
-    Eigen::VectorXd spectrum(numAngles);
-    Eigen::MatrixXcd proj = signalSubspace * signalSubspace.adjoint();
-    for (int i = 0; i < numAngles; ++i) {
-        double angle = -M_PI / 2 + i * M_PI / numAngles; // Angle range from -90 to 90 degrees
-        Eigen::VectorXcd a = arrayResponseVector(numSensors, angle, d, lambda);
-        std::complex<double> denominator = a.adjoint() * (Eigen::MatrixXcd::Identity(numSensors, numSensors) - proj) * a;
-        spectrum[i] = (1.0) / denominator.real();
-    }
-    return spectrum;
-}
-
-Eigen::VectorXcd musicSpectrum2(Eigen::MatrixXcd& Qn, Eigen::MatrixXcd& a) {
+Eigen::VectorXcd musicSpectrum(Eigen::MatrixXcd& Qn, Eigen::MatrixXcd& a) {
   Eigen::VectorXcd music_spectrum(numAngles);
   for (int k = 0; k < numAngles; ++k) {
     std::complex<double> denominador = a.col(k).adjoint() * Qn * Qn.adjoint() * a.col(k);
@@ -234,13 +210,8 @@ int jack_callback(jack_nframes_t nframes, void *arg) {
     // Sacamos el slice correspondiente a la primer frecuencia
     this_X = X.col(i);
     // Calculamos R
-    Eigen::MatrixXcd R = computeCovarianceMatrix(this_X);
+    Eigen::MatrixXcd R = computeCov(this_X);
 
-    //  Eigendescomposicion de R
-      //  Sort eigenvalues (descending)
-      //  Sort Q eigenvectors
-      //  Get noise eigenvectors
-      //  Compute steering vectors
     Eigen::MatrixXcd Qs;
     Eigen::MatrixXcd Qn;
     eigenDecomposition(R, Qs, Qn);
@@ -250,7 +221,7 @@ int jack_callback(jack_nframes_t nframes, void *arg) {
 
     //  Compute MUSIC spectrum
     Eigen::VectorXcd tmp_music_spectrum(numAngles);
-    tmp_music_spectrum = musicSpectrum2(Qn, a);
+    tmp_music_spectrum = musicSpectrum(Qn, a);
 
     final_music_spectrum += tmp_music_spectrum;
   }
@@ -278,10 +249,6 @@ int main(int argc, char *argv[]) {
   // Definimos el vector de ángulos
   set_angles();
   printf("set_angles done\n");
-  
-  // // Apartamos la memoria para el espectro de MUSIC
-  // music_spectrum_alloc();
-  // printf("music_spectrum_alloc done\n");
 
   // Cosas de JACK
   const char *client_name = "MUSIC";
