@@ -30,7 +30,7 @@ using namespace std;
 
 ///////////// Varibales globales ///////
 const double vel_sonido = 343;   // metros/segundos
-const double dist_mic   = 0.20;  // Distancia entre micrófonos, checar AIRA
+const double dist_mic   = 0.18;  // Distancia entre micrófonos, checar AIRA
 const int numMic        = 2; // Cantidad de micrófonos
 const int numSig        = 1; // Cantidad de señales
 const int num_elements  = 1800; // Cantidad de grados a checar
@@ -85,7 +85,7 @@ void set_search_freq(void) {
   // Se piensa analizar solamente las frecuencias entre
   // 40 a 40k Hz
   for (int i = 0; i < w.size(); i+=1) {
-    if ((w[i] >= 40) and (w[i] <= 40000)) {
+    if ((w[i] >= 40) and (w[i] <= 4000)) {
       // Guardamos los índices que vamos a buscar posteriormente 
       //    dentro de w
       search_freq.push_back(i);

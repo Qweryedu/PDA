@@ -41,7 +41,7 @@ std::complex <double> *R;
 Eigen::VectorXd w; // Frequency vector
 int min_freq =40;
 int max_freq = 40000;
-int *search_freq;
+double *search_freq;
 int freq_range;
 Eigen::MatrixXcd this_X;
 double *ventanaHann;
@@ -82,7 +82,7 @@ void set_angles(void) {
 
 void set_search_freq(void) {
   // Asignamos la memoria
-  search_freq = (int *)malloc(sizeof(int) * buffer_size);
+  search_freq = (double *)malloc(sizeof(double) * buffer_size);
   // Definir los candidatos
   // Checar con todos, checar con 40 a 40k Hz
   for (int i = 0; i < fft_buffer_size; i+=1) {
