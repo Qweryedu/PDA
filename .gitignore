@@ -10,3 +10,5 @@ AIRA
 ReadMicWavs*
 corpus*
 *.pptx
+*.zip
+*.pyc
