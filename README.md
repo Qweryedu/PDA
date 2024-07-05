@@ -6,7 +6,7 @@
 
 #### Eduardo García Alarcón
 
-Repositorio que contiene los trabajos realizados en la clase y los códigos traducidos de Matlab/Octave a Python para los ejemplos de prototipado.
+Repositorio que contiene los trabajos realizados en la clase
 
 Para llevar a cabo este curso, si recomienda installar las siguientes herramientas:
 
@@ -16,5 +16,3 @@ Para llevar a cabo este curso, si recomienda installar las siguientes herramient
 - Octave/Matlab
 - JACK
 - Baudline
-
-_La traducción de los ejemplos de prototipado fue realizada en un ambiente de Jupyter Notebook con Python 3.10.12 como Kernel_
