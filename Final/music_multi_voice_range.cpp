@@ -30,7 +30,7 @@ using namespace std;
 
 ///////////// Varibales globales ///////
 const double vel_sonido = 343;   // metros/segundos
-const double dist_mic   = 0.18;  // Distancia entre micrófonos, checar AIRA
+double dist_mic   = 0.18;  // Distancia entre micrófonos, checar AIRA
 const int numMic        = 2; // Cantidad de micrófonos
 const int numSig        = 1; // Cantidad de señales
 const int num_elements  = 1800; // Cantidad de grados a checar
@@ -246,6 +246,21 @@ void jack_shutdown(void *arg) {
 
 ///////////// main /////////////////////
 int main(int argc, char *argv[]) {
+  // Checamos la distancia de los micrófonos
+  if (argc > 1){
+    printf("Se sobreescrobe la distancia de los micrófonos\n");
+    double tmp_dist_mic = atoi(argv[1]);
+    // Checamos que sea un número válido
+    if ((tmp_dist_mic > 0)&&(tmp_dist_mic < 1)){
+      dist_mic = tmp_dist_mic;
+    }
+    else {
+      printf("El valor %f no es una distancia válida entre micrófonos\n", tmp_dist_mic);
+      exit(1);
+    }
+  }
+  
+  
   int i,j; // Iteradores
   printf("Implementación de MUISC\n");
   // Definimos el vector de ángulos
